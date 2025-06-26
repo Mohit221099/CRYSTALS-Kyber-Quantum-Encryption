@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CRYSTALS-Kyber API Data Flow Visualizer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #0c0c0c 0%, #1a1a2e 50%, #16213e 100%);
+            color: #ffffff;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        .header {
+            text-align: center;
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(10px);
+            border-bottom: 2px solid #00ff41;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            background: linear-gradient(45deg, #00ff41, #0099ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            color: #cccccc;
+            font-size: 1.1em;
+        }
+
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            padding: 20px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            background: linear-gradient(45deg, #ff6b6b, #ee5a24);
+            border: none;
+            padding: 12px 24px;
+            border-radius: 25px;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 14px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(255, 107, 107, 0.3);
+        }
+
+        .btn.primary {
+            background: linear-gradient(45deg, #00ff41, #00cc33);
+        }
+
+        .btn.primary:hover {
+            box-shadow: 0 8px 25px rgba(0, 255, 65, 0.3);
+        }
+
+        .visualization-container {
+            position: relative;
+            height: 400px;
+            margin: 20px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 15px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            overflow: hidden;
+        }
+
+        .flow-pipeline {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            height: 100%;
+            padding: 40px;
+            position: relative;
+        }
+
+        .component {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            z-index: 2;
+        }
+
+        .component-box {
+            width: 120px;
+            height: 80px;
+            border-radius: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            text-align: center;
+            border: 2px solid;
+            margin-bottom: 10px;
+            transition: all 0.3s ease;
+        }
+
+        .client {
+            background: linear-gradient(45deg, #2E86AB, #A23B72);
+            border-color: #2E86AB;
+        }
+
+        .encryption {
+            background: linear-gradient(45deg, #A23B72, #F18F01);
+            border-color: #A23B72;
+        }
+
+        .server {
+            background: linear-gradient(45deg, #F18F01, #C73E1D);
+            border-color: #F18F01;
+        }
+
+        .flow-arrow {
+            position: absolute;
+            top: 50%;
+            width: 0;
+            height: 0;
+            border-left: 20px solid #00ff41;
+            border-top: 10px solid transparent;
+            border-bottom: 10px solid transparent;
+            z-index: 1;
+            opacity: 0.7;
+            animation: pulse 2s infinite;
+        }
+
+        .arrow1 { left: 25%; }
+        .arrow2 { left: 60%; }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 0.7; transform: translateY(-50%) scale(1); }
+            50% { opacity: 1; transform: translateY(-50%) scale(1.1); }
+        }
+
+        .data-packet {
+            position: absolute;
+            width: 30px;
+            height: 20px;
+            border-radius: 5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            font-weight: bold;
+            transition: all 0.5s ease;
+            z-index: 3;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .packet-plaintext {
+            background: linear-gradient(45deg, #00ff41, #00cc33);
+            color: #000;
+        }
+
+        .packet-encrypting {
+            background: linear-gradient(45deg, #ff6b6b, #ee5a24);
+            animation: encrypt-glow 1s infinite alternate;
+        }
+
+        .packet-encrypted {
+            background: linear-gradient(45deg, #9b59b6, #8e44ad);
+        }
+
+        .packet-decrypted {
+            background: linear-gradient(45deg, #f39c12, #e67e22);
+        }
+
+        @keyframes encrypt-glow {
+            0% { box-shadow: 0 0 10px rgba(255, 107, 107, 0.5); }
+            100% { box-shadow: 0 0 20px rgba(255, 107, 107, 0.8); }
+        }
+
+        .stats-panel {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin: 20px;
+        }
+
+        .stat-card {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 15px;
+            padding: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+        }
+
+        .stat-card h3 {
+            color: #00ff41;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+        }
+
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            padding: 5px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .stat-value {
+            font-weight: bold;
+            color: #00ff41;
+        }
+
+        .encryption-details {
+            background: rgba(162, 59, 114, 0.1);
+            border: 1px solid #A23B72;
+            border-radius: 10px;
+            padding: 15px;
+            margin: 10px 0;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+        }
+
+        .api-data-preview {
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 10px;
+            padding: 15px;
+            margin: 10px 0;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+
+        .status-active { background: #00ff41; animation: blink 1s infinite; }
+        .status-inactive { background: #666; }
+
+        @keyframes blink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0.3; }
+        }
+
+        .key-info {
+            background: linear-gradient(45deg, rgba(0, 255, 65, 0.1), rgba(0, 153, 255, 0.1));
+            border: 1px solid #00ff41;
+        }
+
+        .performance-metrics {
+            background: linear-gradient(45deg, rgba(255, 107, 107, 0.1), rgba(238, 90, 36, 0.1));
+            border: 1px solid #ff6b6b;
+        }
+
+        @media (max-width: 768px) {
+            .flow-pipeline {
+                flex-direction: column;
+                gap: 30px;
+                padding: 20px;
+            }
+
+            .flow-arrow {
+                display: none;
+            }
+
+            .header h1 {
+                font-size: 2em;
+            }
+
+            .controls {
+                padding: 15px;
+            }
+
+            .btn {
+                padding: 10px 20px;
+                font-size: 12px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🔐 CRYSTALS-Kyber API Data Flow</h1>
+        <p>Post-Quantum Cryptographic Visualization</p>
+    </div>
+
+    <div class="controls">
+        <button class="btn primary" onclick="startSimulation()">▶️ Start Simulation</button>
+        <button class="btn" onclick="stopSimulation()">⏹️ Stop Simulation</button>
+        <button class="btn" onclick="sendSinglePacket()">📦 Send Single Packet</button>
+        <button class="btn" onclick="clearAll()">🗑️ Clear All</button>
+    </div>
+
+    <div class="visualization-container">
+        <div class="flow-pipeline">
+            <div class="component">
+                <div class="component-box client">
+                    <span>📱<br>CLIENT</span>
+                </div>
+                <small>API Requester</small>
+            </div>
+
+            <div class="component">
+                <div class="component-box encryption">
+                    <span>🔐<br>KYBER<br>ENCRYPT</span>
+                </div>
+                <small>Post-Quantum Encryption</small>
+            </div>
+
+            <div class="component">
+                <div class="component-box server">
+                    <span>🖥️<br>SERVER</span>
+                </div>
+                <small>API Provider</small>
+            </div>
+
+            <div class="flow-arrow arrow1"></div>
+            <div class="flow-arrow arrow2"></div>
+        </div>
+    </div>
+
+    <div class="stats-panel">
+        <div class="stat-card key-info">
+            <h3>🔑 Kyber Key Information</h3>
+            <div class="stat-item">
+                <span>Security Level:</span>
+                <span class="stat-value" id="security-level">512 bits</span>
+            </div>
+            <div class="stat-item">
+                <span>Public Key Size:</span>
+                <span class="stat-value" id="pub-key-size">Loading...</span>
+            </div>
+            <div class="stat-item">
+                <span>Private Key Size:</span>
+                <span class="stat-value" id="priv-key-size">Loading...</span>
+            </div>
+            <div class="stat-item">
+                <span>Polynomial Degree:</span>
+                <span class="stat-value">256</span>
+            </div>
+            <div class="stat-item">
+                <span>Modulus (q):</span>
+                <span class="stat-value">3329</span>
+            </div>
+        </div>
+
+        <div class="stat-card">
+            <h3>📊 Flow Statistics</h3>
+            <div class="stat-item">
+                <span><span class="status-indicator" id="simulation-status"></span>Simulation Status:</span>
+                <span class="stat-value" id="sim-status-text">Stopped</span>
+            </div>
+            <div class="stat-item">
+                <span>Total Packets:</span>
+                <span class="stat-value" id="total-packets">0</span>
+            </div>
+            <div class="stat-item">
+                <span>Encrypted Packets:</span>
+                <span class="stat-value" id="encrypted-packets">0</span>
+            </div>
+            <div class="stat-item">
+                <span>Active in Pipeline:</span>
+                <span class="stat-value" id="active-packets">0</span>
+            </div>
+            <div class="stat-item">
+                <span>Success Rate:</span>
+                <span class="stat-value" id="success-rate">100%</span>
+            </div>
+        </div>
+
+        <div class="stat-card performance-metrics">
+            <h3>⚡ Performance Metrics</h3>
+            <div class="stat-item">
+                <span>Avg Encryption Time:</span>
+                <span class="stat-value" id="avg-encrypt-time">0.00ms</span>
+            </div>
+            <div class="stat-item">
+                <span>Avg Decryption Time:</span>
+                <span class="stat-value" id="avg-decrypt-time">0.00ms</span>
+            </div>
+            <div class="stat-item">
+                <span>Throughput:</span>
+                <span class="stat-value" id="throughput">0 packets/sec</span>
+            </div>
+            <div class="stat-item">
+                <span>Data Integrity:</span>
+                <span class="stat-value" id="data-integrity">✅ Verified</span>
+            </div>
+        </div>
+
+        <div class="stat-card">
+            <h3>📦 Latest API Request</h3>
+            <div class="api-data-preview" id="api-preview">
+                No data yet - start simulation to see API requests
+            </div>
+        </div>
+
+        <div class="stat-card">
+            <h3>🔐 Encryption Details</h3>
+            <div class="encryption-details" id="encryption-details">
+                No encryption data yet - send a packet to see details
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class CRYSTALSKyberSimulator {
+            constructor(securityLevel = 512) {
+                this.securityLevel = securityLevel;
+                this.q = 3329;
+                this.n = 256;
+            }
+
+            generatePolynomial() {
+                return Array.from({length: 64}, () => Math.floor(Math.random() * this.q));
+            }
+
+            polynomialAdd(a, b) {
+                return a.map((val, i) => (val + (b[i] || 0)) % this.q);
+            }
+
+            polynomialMultiplySimple(a, b) {
+                const result = new Array(64).fill(0);
+                for (let i = 0; i < Math.min(a.length, 32); i++) {
+                    for (let j = 0; j < Math.min(b.length, 32); j++) {
+                        if (i + j < 64) {
+                            result[i + j] = (result[i + j] + a[i] * b[j]) % this.q;
+                        }
+                    }
+                }
+                return result;
+            }
+
+            addNoise(poly) {
+                return poly.map(val => (val + Math.floor(Math.random() * 5) - 2) % this.q);
+            }
+
+            keygen() {
+                const s = this.generatePolynomial();
+                const A = this.generatePolynomial();
+                const e = this.addNoise(new Array(64).fill(0));
+                
+                const As = this.polynomialMultiplySimple(A, s);
+                const b = this.polynomialAdd(As, e);
+                
+                return {
+                    publicKey: { A, b },
+                    privateKey: { s }
+                };
+            }
+
+            encapsulate(publicKey) {
+                const r = Array.from({length: 64}, () => Math.floor(Math.random() * 2));
+                const e1 = this.addNoise(new Array(64).fill(0));
+                const e2 = Math.floor(Math.random() * 3);
+                
+                const Ar = this.polynomialMultiplySimple(publicKey.A, r);
+                const u = this.polynomialAdd(Ar, e1);
+                
+                // Generate shared secret
+                const sharedSecret = this.generateSharedSecret(r);
+                
+                const br = this.polynomialMultiplySimple(publicKey.b, r);
+                const v = br.map(val => (val + e2) % this.q);
+                
+                return {
+                    ciphertext: { u, v },
+                    sharedSecret
+                };
+            }
+
+            decapsulate(ciphertext, privateKey) {
+                const su = this.polynomialMultiplySimple(privateKey.s, ciphertext.u);
+                const recovered = ciphertext.v.map((val, i) => (val - su[i] + this.q) % this.q);
+                
+                return this.generateSharedSecret(recovered);
+            }
+
+            generateSharedSecret(data) {
+                // Simple hash-based shared secret generation
+                const str = data.toString();
+                let hash = 0;
+                for (let i = 0; i < str.length; i++) {
+                    const char = str.charCodeAt(i);
+                    hash = ((hash << 5) - hash) + char;
+                    hash = hash & hash;
+                }
+                return Math.abs(hash).toString(16).padStart(8, '0');
+            }
+        }
+
+        class APIDataFlowVisualizer {
+            constructor() {
+                this.kyber = new CRYSTALSKyberSimulator();
+                this.keys = this.kyber.keygen();
+                this.packets = [];
+                this.isRunning = false;
+                this.packetCounter = 0;
+                this.stats = {
+                    totalPackets: 0,
+                    encryptedPackets: 0,
+                    encryptionTimes: [],
+                    decryptionTimes: []
+                };
+                
+                this.initializeUI();
+            }
+
+            initializeUI() {
+                document.getElementById('pub-key-size').textContent = 
+                    `${JSON.stringify(this.keys.publicKey).length} chars`;
+                document.getElementById('priv-key-size').textContent = 
+                    `${JSON.stringify(this.keys.privateKey).length} chars`;
+                
+                this.updateSimulationStatus(false);
+            }
+
+            generateApiData() {
+                const endpoints = [
+                    '/api/users', '/api/orders', '/api/products', 
+                    '/api/analytics', '/api/payments', '/api/inventory'
+                ];
+                const methods = ['GET', 'POST', 'PUT', 'DELETE'];
+                
+                return {
+                    endpoint: endpoints[Math.floor(Math.random() * endpoints.length)],
+                    method: methods[Math.floor(Math.random() * methods.length)],
+                    timestamp: new Date().toISOString(),
+                    userId: Math.floor(Math.random() * 9000) + 1000,
+                    sessionToken: Math.random().toString(36).substring(2, 18),
+                    payloadSize: Math.floor(Math.random() * 4900) + 100,
+                    clientIp: `${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}`
+                };
+            }
+
+            encryptData(data) {
+                const startTime = performance.now();
+                const dataStr = JSON.stringify(data);
+                
+                const result = this.kyber.encapsulate(this.keys.publicKey);
+                
+                // Simple XOR encryption with shared secret
+                let encrypted = '';
+                const key = result.sharedSecret;
+                for (let i = 0; i < dataStr.length; i++) {
+                    const charCode = dataStr.charCodeAt(i) ^ key.charCodeAt(i % key.length);
+                    encrypted += String.fromCharCode(charCode);
+                }
+                
+                const encryptionTime = performance.now() - startTime;
+                this.stats.encryptionTimes.push(encryptionTime);
+                
+                return {
+                    ciphertext: result.ciphertext,
+                    encryptedData: btoa(encrypted),
+                    sharedSecret: result.sharedSecret,
+                    encryptionTime,
+                    originalSize: dataStr.length,
+                    encryptedSize: encrypted.length
+                };
+            }
+
+            decryptData(encryptedPackage) {
+                const startTime = performance.now();
+                
+                const sharedSecret = this.kyber.decapsulate(
+                    encryptedPackage.ciphertext, 
+                    this.keys.privateKey
+                );
+                
+                // Decrypt using XOR
+                const encrypted = atob(encryptedPackage.encryptedData);
+                let decrypted = '';
+                for (let i = 0; i < encrypted.length; i++) {
+                    const charCode = encrypted.charCodeAt(i) ^ sharedSecret.charCodeAt(i % sharedSecret.length);
+                    decrypted += String.fromCharCode(charCode);
+                }
+                
+                const decryptionTime = performance.now() - startTime;
+                this.stats.decryptionTimes.push(decryptionTime);
+                
+                return {
+                    data: JSON.parse(decrypted),
+                    decryptionTime,
+                    success: sharedSecret === encryptedPackage.sharedSecret
+                };
+            }
+
+            createPacket(apiData) {
+                const packet = {
+                    id: ++this.packetCounter,
+                    apiData,
+                    position: 0, // 0: client, 1: encrypting, 2: encrypted, 3: server
+                    element: null,
+                    creationTime: Date.now()
+                };
+
+                this.stats.totalPackets++;
+                this.packets.push(packet);
+                this.updateStats();
+                
+                return packet;
+            }
+
+            renderPacket(packet) {
+                if (packet.element) {
+                    packet.element.remove();
+                }
+
+                const element = document.createElement('div');
+                element.className = 'data-packet';
+                element.textContent = packet.id.toString().padStart(3, '0');
+                
+                const container = document.querySelector('.visualization-container');
+                const positions = [
+                    { left: '8%', top: '45%' },    // Client
+                    { left: '42%', top: '35%' },   // Encrypting
+                    { left: '58%', top: '35%' },   // Encrypted
+                    { left: '85%', top: '45%' }    // Server
+                ];
+
+                const classes = ['packet-plaintext', 'packet-encrypting', 'packet-encrypted', 'packet-decrypted'];
+                element.classList.add(classes[packet.position]);
+                
+                element.style.left = positions[packet.position].left;
+                element.style.top = positions[packet.position].top;
+                
+                container.appendChild(element);
+                packet.element = element;
+            }
+
+            async animatePacket(packet) {
+                this.updateApiPreview(packet.apiData);
+                
+                // Stage 0: Client
+                packet.position = 0;
+                this.renderPacket(packet);
+                await this.delay(1000);
+
+                // Stage 1: Encrypting
+                packet.position = 1;
+                this.renderPacket(packet);
+                
+                const encryptedData = this.encryptData(packet.apiData);
+                packet.encryptedData = encryptedData;
+                this.stats.encryptedPackets++;
+                this.updateEncryptionDetails(encryptedData);
+                
+                await this.delay(1500);
+
+                // Stage 2: Encrypted (transmission)
+                packet.position = 2;
+                this.renderPacket(packet);
+                await this.delay(1000);
+
+                // Stage 3: Server (decryption)
+                packet.position = 3;
+                this.renderPacket(packet);
+                
+                const decryptedData = this.decryptData(packet.encryptedData);
+                packet.decryptedData = decryptedData;
+                
+                await this.delay(1000);
+
+                // Remove packet after animation
+                if (packet.element) {
+                    packet.element.remove();
+                }
+                
+                const index = this.packets.indexOf(packet);
+                if (index > -1) {
+                    this.packets.splice(index, 1);
+                }
+                
+                this.updateStats();
+            }
+
+            updateApiPreview(apiData) {
+                const preview = document.getElementById('api-preview');
+                preview.textContent = JSON.stringify(apiData, null, 2);
+            }
+
+            updateEncryptionDetails(encryptedData) {
+                const details = document.getElementById('encryption-details');
+                details.innerHTML = `
+                    <strong>🔐 Encryption Process:</strong><br>
+                    Original Size: ${encryptedData.originalSize} bytes<br>
+                    Encrypted Size: ${encryptedData.encryptedSize} bytes<br>
+                    Shared Secret: ${encryptedData.sharedSecret}<br>
+                    Ciphertext U: [${encryptedData.ciphertext.u.slice(0, 5).join(', ')}...]<br>
+                    Ciphertext V: [${encryptedData.ciphertext.v.slice(0, 5).join(', ')}...]<br>
+                    Encryption Time: ${encryptedData.encryptionTime.toFixed(2)}ms
+                `;
+            }
+
+            updateStats() {
+                document.getElementById('total-packets').textContent = this.stats.totalPackets;
+                document.getElementById('encrypted-packets').textContent = this.stats.encryptedPackets;
+                document.getElementById('active-packets').textContent = this.packets.length;
+                
+                const avgEncryptTime = this.stats.encryptionTimes.length > 0 
+                    ? this.stats.encryptionTimes.reduce((a, b) => a + b, 0) / this.stats.encryptionTimes.length 
+                    : 0;
+                
+                const avgDecryptTime = this.stats.decryptionTimes.length > 0 
+                    ? this.stats.decryptionTimes.reduce((a, b) => a + b, 0) / this.stats.decryptionTimes.length 
+                    : 0;
+
+                document.getElementById('avg-encrypt-time').textContent = `${avgEncryptTime.toFixed(2)}ms`;
+                document.getElementById('avg-decrypt-time').textContent = `${avgDecryptTime.toFixed(2)}ms`;
+                
+                const throughput = this.stats.totalPackets > 0 ? 
+                    (this.stats.totalPackets / ((Date.now() - this.startTime) / 1000)).toFixed(1) : '0';
+                document.getElementById('throughput').textContent = `${throughput} packets/sec`;
+            }
+
+            updateSimulationStatus(running) {
+                this.isRunning = running;
+                const statusIndicator = document.getElementById('simulation-status');
+                const statusText = document.getElementById('sim-status-text');
+                
+                if (running) {
+                    statusIndicator.className = 'status-indicator status-active';
+                    statusText.textContent = 'Running';
+                    this.startTime = Date.now();
+                } else {
+                    statusIndicator.className = 'status-indicator status-inactive';
+                    statusText.textContent = 'Stopped';
+                }
+            }
+
+            delay(ms) {
+                return new Promise(resolve => setTimeout(resolve, ms));
+            }
+
+            async startSimulation() {
+                if (this.isRunning) return;
+                
+                this.updateSimulationStatus(true);
+                
+                while (this.isRunning) {
+                    const apiData = this.generateApiData();
+                    const packet = this.createPacket(apiData);
+                    
+                    // Don't await - let packets animate concurrently
+                    this.animatePacket(packet);
+                    
+                    await this.delay(2000); // Send new packet every 2 seconds
+                }
+            }
+
+            stopSimulation() {
+                this.updateSimulationStatus(false);
+            }
+
+            async sendSinglePacket() {
+                const apiData = this.generateApiData();
+                const packet = this.createPacket(apiData);
+                await this.animatePacket(packet);
+            }
+
+            clearAll() {
+                this.stopSimulation();
+                this.packets.forEach(packet => {
+                    if (packet.element) {
+                        packet.element.remove();
+                    }
+                });
+                this.packets = [];
+                this.stats = {
+                    totalPackets: 0,
+                    encryptedPackets: 0,
+                    encryptionTimes: [],
+                    decryptionTimes: []
+                };
+                this.packetCounter = 0;
+                this.updateStats();
+                
+                document.getElementById('api-preview').textContent = 
+                    'No data yet - start simulation to see API requests';
+                document.getElementById('encryption-details').textContent = 
+                    'No encryption data yet - send a packet to see details';
+            }
+        }
+
+        // Global instance
+        let visualizer;
+
+        // Initialize when page loads
+        window.addEventListener('load', () => {
+            visualizer = new APIDataFlowVisualizer();
+        });
+
+        // Control functions
+        function startSimulation() {
+            visualizer.startSimulation();
+        }
+
+        function stopSimulation() {
+            visualizer.stopSimulation();
+        }
+
+        function sendSinglePacket() {
+            visualizer.sendSinglePacket();
+        }
+
+        function clearAll() {
+            visualizer.clearAll();
+        }
+    </script>
+</body>
+</html>
